@@ -3,51 +3,52 @@ from datetime import datetime
 from typing import Optional
 
 
-class userCreate(BaseModel):
-    email: EmailStr
+
+class UserCreate(BaseModel):
+    email:              EmailStr
+    password:           str
+    notification_email: Optional[EmailStr] = None
+    pushover_key:       Optional[str] = None
+
+
+class UserLogin(BaseModel):
+    email:    EmailStr
     password: str
-    notificationEmail:Optional[EmailStr]=None
-    pushoverKey:Optional[str]=None
 
 
-class userLogin(BaseModel):
-    email:EmailStr
-    password:str
-
-
-
-class userResponse(BaseModel):
-    id: int
-    email: EmailStr
-    notificationEmail:Optional[EmailStr]
-    pushoverKey:Optional[str]
-    isActive:bool
-    createdAt:datetime
-
-    class config:
-        fromConfig=True
-
-
-class token(BaseModel):
-    accessToken:str
-    tokenType:str
-
-
-class wishListItemCreate(BaseModel):
-    gameTitle:str
-
-
-class wishListItemResponse(BaseModel):
-    id: int
-    gameTitle:str
-    addedAt:datetime
+class UserResponse(BaseModel):
+    id:                 int
+    email:              EmailStr
+    notification_email: Optional[EmailStr]
+    pushover_key:       Optional[str]
+    is_active:          bool
+    created_at:         datetime
 
     class Config:
-        fromAttributes=True
+        from_attributes = True
 
 
-class userUpdate(BaseModel):
-    notificationEmail:Optional[EmailStr]=None
-    pushoverTolen:Optional[EmailStr]=None
-    password:Optional[EmailStr]=None
-    
+class Token(BaseModel):
+    access_token: str
+    token_type:   str
+
+
+class WishlistItemCreate(BaseModel):
+    game_title: str
+
+
+class WishlistItemResponse(BaseModel):
+    id:         int
+    game_title: str
+    added_at:   datetime
+
+    class Config:
+        from_attributes = True
+
+
+
+
+class UserUpdate(BaseModel):
+    notification_email: Optional[EmailStr] = None
+    pushover_key:       Optional[str] = None
+    password:           Optional[str] = None
