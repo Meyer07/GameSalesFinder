@@ -1,5 +1,12 @@
-import React,{ useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { apiRequest } from "../api"
+
+const PLATFORMS = [
+  { key: "ps",     label: "PlayStation", color: "#0070cc", emoji: "🎮" },
+  { key: "steam",  label: "Steam",       color: "#1b2838", emoji: "🖥️" },
+  { key: "switch", label: "Nintendo Switch", color: "#e4000f", emoji: "🕹️" },
+  { key: "xbox",   label: "Xbox",        color: "#107c10", emoji: "🟩" },
+]
 
 export default function Dashboard({ token, onLogout }) {
   const [user, setUser]               = useState(null)
@@ -7,6 +14,7 @@ export default function Dashboard({ token, onLogout }) {
   const [newGame, setNewGame]         = useState("")
   const [pushover, setPushover]       = useState("")
   const [notifyEmail, setNotifyEmail] = useState("")
+  const [selectedPlatforms, setSelectedPlatforms] = useState(["ps"])
   const [error, setError]             = useState("")
   const [success, setSuccess]         = useState("")
   const [loading, setLoading]         = useState(false)
@@ -23,9 +31,19 @@ export default function Dashboard({ token, onLogout }) {
       setWishlist(wishlistData)
       setPushover(userData.pushover_key || "")
       setNotifyEmail(userData.notification_email || "")
+      // Parse platforms string "ps,steam" → ["ps", "steam"]
+      setSelectedPlatforms((userData.platforms || "ps").split(",").map(p => p.trim()))
     } catch (e) {
       setError(e.message)
     }
+  }
+
+  const togglePlatform = (key) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(key)
+        ? prev.filter(p => p !== key)
+        : [...prev, key]
+    )
   }
 
   const addGame = async () => {
@@ -55,14 +73,19 @@ export default function Dashboard({ token, onLogout }) {
   }
 
   const saveSettings = async () => {
+    if (selectedPlatforms.length === 0) {
+      setError("Please select at least one platform.")
+      return
+    }
     setLoading(true)
     setError("")
     try {
       await apiRequest("/auth/me", {
         method: "PUT",
         body: JSON.stringify({
-          pushover_key:       pushover    || null,
-          notification_email: notifyEmail || null,
+          pushover_key:       pushover      || null,
+          notification_email: notifyEmail   || null,
+          platforms:          selectedPlatforms.join(","),
         }),
       }, token)
       showSuccess("Settings saved!")
@@ -84,7 +107,7 @@ export default function Dashboard({ token, onLogout }) {
 
         {/* Header */}
         <div style={styles.header}>
-          <h1 style={styles.title}>🎮 PS Deals</h1>
+          <h1 style={styles.title}>🎮 Game Deals</h1>
           <div style={styles.headerRight}>
             <span style={styles.emailText}>{user?.email}</span>
             <button style={styles.logoutBtn} onClick={onLogout}>Logout</button>
@@ -97,7 +120,7 @@ export default function Dashboard({ token, onLogout }) {
         {/* Wishlist */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>🎯 Your Wishlist</h2>
-          <p style={styles.cardSubtitle}>You'll get notified when any of these games go on sale.</p>
+          <p style={styles.cardSubtitle}>You'll get notified when any of these games go on sale across your selected platforms.</p>
 
           <div style={styles.addRow}>
             <input
@@ -132,6 +155,32 @@ export default function Dashboard({ token, onLogout }) {
           <h2 style={styles.cardTitle}>🔔 Notification Settings</h2>
           <p style={styles.cardSubtitle}>Choose where and how you receive deal alerts.</p>
 
+          {/* Platform Selection */}
+          <label style={styles.label}>Platforms to Monitor</label>
+          <div style={styles.platformGrid}>
+            {PLATFORMS.map(p => {
+              const active = selectedPlatforms.includes(p.key)
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => togglePlatform(p.key)}
+                  style={{
+                    ...styles.platformBtn,
+                    background:  active ? p.color : "#0f3460",
+                    border:      active ? `2px solid ${p.color}` : "2px solid #333",
+                    opacity:     active ? 1 : 0.5,
+                  }}
+                >
+                  <span style={styles.platformEmoji}>{p.emoji}</span>
+                  <span style={styles.platformLabel}>{p.label}</span>
+                  {active && <span style={styles.checkmark}>✓</span>}
+                </button>
+              )
+            })}
+          </div>
+          <p style={styles.hint}>Select all platforms you want to monitor for deals.</p>
+
+          {/* Notification Email */}
           <label style={styles.label}>Notification Email</label>
           <input
             style={styles.input}
@@ -142,6 +191,7 @@ export default function Dashboard({ token, onLogout }) {
           />
           <p style={styles.hint}>Send deal alerts to a different email than your login email.</p>
 
+          {/* Pushover */}
           <label style={styles.label}>Pushover User Key</label>
           <input
             style={styles.input}
@@ -190,7 +240,12 @@ const styles = {
   empty:        { color: "#555", textAlign: "center", padding: "1rem" },
   error:        { background: "#ff000033", border: "1px solid #ff4444", borderRadius: "8px", padding: "0.75rem", color: "#ff6b6b", marginBottom: "1rem" },
   successMsg:   { background: "#00c85333", border: "1px solid #00c853", borderRadius: "8px", padding: "0.75rem", color: "#00c853", marginBottom: "1rem" },
-  label:        { color: "#aaa", fontSize: "0.85rem", display: "block", marginBottom: "0.4rem" },
+  label:        { color: "#aaa", fontSize: "0.85rem", display: "block", marginBottom: "0.75rem" },
   hint:         { color: "#666", fontSize: "0.8rem", marginTop: "-0.25rem", marginBottom: "1rem" },
   link:         { color: "#0070cc" },
+  platformGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" },
+  platformBtn:  { display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", borderRadius: "8px", color: "#fff", cursor: "pointer", fontSize: "0.95rem", transition: "all 0.2s", position: "relative" },
+  platformEmoji:{ fontSize: "1.2rem" },
+  platformLabel:{ fontWeight: "bold" },
+  checkmark:    { marginLeft: "auto", fontSize: "0.9rem", color: "#fff" },
 }

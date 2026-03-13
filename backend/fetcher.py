@@ -6,21 +6,36 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 MAX_DEALS = 100
 
+PLATFORM_URLS = {
+    "ps":     "https://www.dekudeals.com/ps-deals",
+    "steam":  "https://www.dekudeals.com/steam-deals",
+    "switch": "https://www.dekudeals.com/switch-deals",
+    "xbox":   "https://www.dekudeals.com/xbox-deals",
+}
 
-def fetchPsDeals() -> list[dict]:
+PLATFORM_LABELS = {
+    "ps":     "PlayStation",
+    "steam":  "Steam",
+    "switch": "Nintendo Switch",
+    "xbox":   "Xbox",
+}
+
+
+def _makeDriver():
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
+def _scrapeDeals(driver, url: str, platform_key: str) -> list[dict]:
+    """Scrape deals from a single DekuDeals page."""
     try:
-        driver.get("https://www.dekudeals.com/ps-deals")
+        driver.get(url)
         time.sleep(8)
 
-        # Use JavaScript to extract all deal data at once from the rendered page
         deals_data = driver.execute_script("""
             const cards = document.querySelectorAll('.col.d-block');
             const results = [];
@@ -49,19 +64,40 @@ def fetchPsDeals() -> list[dict]:
             "regular_price": d["original"],
             "discount":      d["discount"],
             "url":           d["url"],
-            "platforms":     ["PS"],
-            "sale_end_date": "",
+            "platform":      platform_key,
+            "platform_label": PLATFORM_LABELS[platform_key],
         } for d in deals_data[:MAX_DEALS]]
 
-        print(f"[✓] Fetched {len(deals)} deals from DekuDeals.")
+        print(f"[✓] Fetched {len(deals)} {PLATFORM_LABELS[platform_key]} deals.")
         return deals
 
     except Exception as e:
-        print(f"Error fetching deals: {e}")
+        print(f"[ERROR] Failed to fetch {platform_key} deals: {e}")
         return []
 
+
+def fetchDealsForPlatforms(platforms: list[str]) -> list[dict]:
+    """Fetch deals for a list of platform keys e.g. ['ps', 'steam']"""
+    all_deals = []
+    driver = _makeDriver()
+    try:
+        for platform in platforms:
+            url = PLATFORM_URLS.get(platform)
+            if not url:
+                print(f"[WARN] Unknown platform: {platform}")
+                continue
+            deals = _scrapeDeals(driver, url, platform)
+            all_deals.extend(deals)
     finally:
         driver.quit()
+
+    print(f"[✓] Total deals fetched across all platforms: {len(all_deals)}")
+    return all_deals
+
+
+def fetchPsDeals() -> list[dict]:
+    """Backwards-compatible single-platform fetch for PlayStation."""
+    return fetchDealsForPlatforms(["ps"])
 
 
 def filterWishlistDeals(deals: list[dict], wishlist: list[str]) -> list[dict]:

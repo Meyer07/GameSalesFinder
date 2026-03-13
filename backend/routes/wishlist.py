@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
-from auth import getCurrentUser
+from auth import get_current_user
 import models
 import schemas
 
@@ -13,7 +13,7 @@ router= APIRouter(prefix="/wishlist",tags=["wishlist"])
 @router.get("/", response_model=List[schemas.WishlistItemResponse])
 def getWishlist(
         db: Session = Depends(get_db),
-    current_user: models.User = Depends(getCurrentUser)
+    current_user: models.User = Depends(get_current_user)
 ):
     return current_user.wishlist
 
@@ -21,7 +21,7 @@ def getWishlist(
 def add_to_wishlist(
     item: schemas.WishlistItemCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(getCurrentUser)
+    current_user: models.User = Depends(get_current_user)
 ):
 
     existing = db.query(models.WishlistItem).filter(
@@ -44,7 +44,7 @@ def add_to_wishlist(
 def remove_from_wishlist(
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(getCurrentUser)
+    current_user: models.User = Depends(get_current_user)
 ):
     item = db.query(models.WishlistItem).filter(
         models.WishlistItem.id      == item_id,

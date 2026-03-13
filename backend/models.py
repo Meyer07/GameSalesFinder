@@ -10,11 +10,11 @@ class User(Base):
     id                 = Column(Integer, primary_key=True, index=True)
     email              = Column(String, unique=True, index=True, nullable=False)
     hashed_password    = Column(String, nullable=False)
-    notification_email = Column(String, nullable=True)   # where to send deal alerts
-    pushover_key       = Column(String, nullable=True)   # personal Pushover user key
+    notification_email = Column(String, nullable=True)
+    pushover_key       = Column(String, nullable=True)
+    platforms          = Column(String, nullable=False, default="ps")  # comma-separated: "ps,steam,switch,xbox"
     is_active          = Column(Boolean, default=True)
     created_at         = Column(DateTime(timezone=True), server_default=func.now())
-
     wishlist           = relationship("WishlistItem", back_populates="user", cascade="all, delete")
 
 
