@@ -5,6 +5,7 @@ const PLATFORMS = [
   { key: "ps",     label: "PlayStation", color: "#0070cc", emoji: "🎮" },
   { key: "steam",  label: "Steam",       color: "#1b2838", emoji: "🖥️" },
   { key: "switch", label: "Nintendo Switch", color: "#e4000f", emoji: "🕹️" },
+  { key: "switch2", label: "Nintendo Switch 2", color: "#c40027", emoji: "🆕" },
   { key: "xbox",   label: "Xbox",        color: "#107c10", emoji: "🟩" },
 ]
 

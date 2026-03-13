@@ -9,7 +9,7 @@ MAX_DEALS = 100
 PLATFORM_URLS = {
     "ps":     "https://www.dekudeals.com/ps-deals",
     "steam":  "https://www.dekudeals.com/steam-deals",
-    "switch": "https://www.dekudeals.com/switch-deals",
+    "switch": "https://www.dekudeals.com/eshop-sales",
     "xbox":   "https://www.dekudeals.com/xbox-deals",
 }
 
@@ -17,6 +17,7 @@ PLATFORM_LABELS = {
     "ps":     "PlayStation",
     "steam":  "Steam",
     "switch": "Nintendo Switch",
+    "switch2":  "Nintendo Switch 2",
     "xbox":   "Xbox",
 }
 

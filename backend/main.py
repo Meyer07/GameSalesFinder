@@ -13,7 +13,10 @@ app = FastAPI(title="PS Deals Notifier", version="1.0.0")
 # CORS — allow React frontend to communicate with the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://your-app.vercel.app"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://your-app.vercel.app",   # ← replace with your real Vercel URL after deploying
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,32 +38,118 @@ def startup():
     print("[✓] Background scheduler started.")
 
 
+# ── Test Endpoints (remove before deploying to production) ────────────────────
+
 @app.get("/test-notify")
 def test_notify():
-    from fetcher import fetchPsDeals, filterWishlistDeals
+    """
+    Runs the full notification job for all users using their saved platform preferences.
+    Visit: http://localhost:8000/test-notify
+    """
+    from fetcher import fetchDealsForPlatforms, filterWishlistDeals
     from notifications import sendEmail, sendPushover
     from database import SessionLocal
-    import models
 
     db = SessionLocal()
-    users = db.query(models.User).filter(models.User.is_active == True).all()
-    deals = fetchPsDeals()
+    results = []
 
-    for user in users:
-        wishlist = [item.game_title for item in user.wishlist]
-        if not wishlist or not deals:
-            continue
-        matched = filterWishlistDeals(deals, wishlist)
-        if matched:
+    try:
+        active_users = db.query(models.User).filter(models.User.is_active == True).all()
+        platform_cache: dict[str, list] = {}
+
+        for user in active_users:
+            wishlist_titles = [item.game_title for item in user.wishlist]
+            if not wishlist_titles:
+                results.append({"user": user.email, "status": "skipped — no wishlist"})
+                continue
+
+            platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
+            cache_key = ",".join(sorted(platforms))
+
+            if cache_key not in platform_cache:
+                platform_cache[cache_key] = fetchDealsForPlatforms(platforms)
+
+            deals = platform_cache[cache_key]
+            matched = filterWishlistDeals(deals, wishlist_titles)
+
+            if not matched:
+                results.append({"user": user.email, "status": "no matches", "platforms": platforms})
+                continue
+
             notify_email = user.notification_email or user.email
             sendEmail(notify_email, matched)
             if user.pushover_key:
                 sendPushover(user.pushover_key, matched)
 
-    db.close()
-    return {"message": f"Notified {len(users)} users"}
+            results.append({
+                "user":      user.email,
+                "platforms": platforms,
+                "matches":   [f"{d['name']} ({d.get('platform_label','')}) — {d['sale_price']} ({d['discount']}% OFF)" for d in matched],
+                "status":    "notified"
+            })
+    finally:
+        db.close()
+
+    return {"results": results}
+
 
 @app.get("/test-deals")
-def test_deals():
-    from fetcher import fetchPsDeals
-    return fetchPsDeals()
+def test_deals(platform: str = "ps"):
+    """
+    Fetch deals for a specific platform and return them.
+    Usage:
+      http://localhost:8000/test-deals           → PlayStation (default)
+      http://localhost:8000/test-deals?platform=steam
+      http://localhost:8000/test-deals?platform=switch
+      http://localhost:8000/test-deals?platform=xbox
+      http://localhost:8000/test-deals?platform=ps,steam  → multiple platforms
+    """
+    from fetcher import fetchDealsForPlatforms
+
+    platforms = [p.strip() for p in platform.split(",")]
+    deals = fetchDealsForPlatforms(platforms)
+    return {
+        "platforms": platforms,
+        "count":     len(deals),
+        "deals":     deals
+    }
+
+
+@app.get("/test-match")
+def test_match(platform: str = "ps"):
+    """
+    Fetch deals for a platform and check which wishlist games match for each user.
+    Useful for debugging before sending notifications.
+    Usage:
+      http://localhost:8000/test-match
+      http://localhost:8000/test-match?platform=steam
+      http://localhost:8000/test-match?platform=ps,steam,switch,xbox
+    """
+    from fetcher import fetchDealsForPlatforms, filterWishlistDeals
+    from database import SessionLocal
+
+    db = SessionLocal()
+    results = []
+
+    try:
+        platforms = [p.strip() for p in platform.split(",")]
+        deals = fetchDealsForPlatforms(platforms)
+
+        active_users = db.query(models.User).filter(models.User.is_active == True).all()
+        for user in active_users:
+            wishlist_titles = [item.game_title for item in user.wishlist]
+            matched = filterWishlistDeals(deals, wishlist_titles)
+            results.append({
+                "user":      user.email,
+                "platforms": platforms,
+                "wishlist":  wishlist_titles,
+                "matches":   [f"{d['name']} ({d.get('platform_label','')}) — {d['sale_price']} ({d['discount']}% OFF)" for d in matched],
+            })
+    finally:
+        db.close()
+
+    return {
+        "platforms":    platforms,
+        "total_deals":  len(deals),
+        "user_results": results
+    }
