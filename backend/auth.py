@@ -15,10 +15,10 @@ load_dotenv()
 
 SECRETKEY=os.getenv("SECRETKEY","changethis")
 ALGORITHM=os.getenv("ALGORITHM","HS256")
-ACCESS_TOKEN_EXPIRE=os.getenv("TOKEN_EXPIRATION","10080")
+ACCESS_TOKEN_EXPIRE=int(os.getenv("TOKEN_EXPIRATION","10080"))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password:str)->str:

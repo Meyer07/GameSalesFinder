@@ -10,7 +10,7 @@ import schemas
 router= APIRouter(prefix="/wishlist",tags=["wishlist"])
 
 
-@router.post("/", response_model=schemas.WishlistItemResponse)
+@router.get("/", response_model=List[schemas.WishlistItemResponse])
 def getWishlist(
         db: Session = Depends(get_db),
     current_user: models.User = Depends(getCurrentUser)
@@ -40,7 +40,7 @@ def add_to_wishlist(
     db.refresh(wishlist_item)
     return wishlist_item
 
-@router.post("/", response_model=schemas.WishlistItemResponse)
+@router.delete("/{item_id}")
 def remove_from_wishlist(
     item_id: int,
     db: Session = Depends(get_db),

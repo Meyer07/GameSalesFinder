@@ -13,10 +13,7 @@ app = FastAPI(title="PS Deals Notifier", version="1.0.0")
 # CORS — allow React frontend to communicate with the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",         # local dev
-        "https://your-app.vercel.app",   # ← replace with your real Vercel URL after deploying
-    ],
+    allow_origins=["http://localhost:5173", "https://your-app.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

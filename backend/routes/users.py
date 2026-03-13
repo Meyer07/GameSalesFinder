@@ -28,8 +28,8 @@ def signup(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(user)
     return user
 
+@router.post("/login", response_model=schemas.Token)
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-
     user = db.query(models.User).filter(models.User.email == credentials.email).first()
     if not user or not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -37,7 +37,7 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     token = create_access_token(data={"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}
 
-
+@router.put("/me", response_model=schemas.UserResponse)
 def updateMe(
     updates: schemas.UserUpdate,
     db: Session = Depends(get_db),
@@ -53,6 +53,6 @@ def updateMe(
     db.refresh(current_user)
     return current_user
 
-
+@router.get("/me", response_model=schemas.UserResponse)
 def getMe(current_user: models.User = Depends(getCurrentUser)):
     return current_user

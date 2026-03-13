@@ -1,10 +1,10 @@
-import {useState} from "react"
+import React,{useState} from "react"
 import {apiRequest} from "../api"
 
 export default function Login({onLogin , onSignup})
 {
     const [email,setEmail]= useState("");
-    const [password,setPassword]=useSate("");
+    const [password,setPassword]=useState("");
     const [error,setError]=useState("");
     const [loading,isLoading]=useState(false);
 
