@@ -2,11 +2,9 @@ import React, { useState, useEffect } from "react"
 import { apiRequest } from "../api"
 
 const PLATFORMS = [
-  { key: "ps",     label: "PlayStation", color: "#0070cc", emoji: "🎮" },
-  { key: "steam",  label: "Steam",       color: "#1b2838", emoji: "🖥️" },
-  { key: "switch", label: "Nintendo Switch", color: "#e4000f", emoji: "🕹️" },
-  { key: "switch2", label: "Nintendo Switch 2", color: "#c40027", emoji: "🆕" },
-  { key: "xbox",   label: "Xbox",        color: "#107c10", emoji: "🟩" },
+  { key: "ps",    label: "PlayStation", color: "#0070cc", emoji: "🎮" },
+  { key: "steam", label: "Steam",       color: "#1b2838", emoji: "🖥️" },
+  { key: "xbox",  label: "Xbox",        color: "#107c10", emoji: "🟩" },
 ]
 
 export default function Dashboard({ token, onLogout }) {
@@ -32,8 +30,12 @@ export default function Dashboard({ token, onLogout }) {
       setWishlist(wishlistData)
       setPushover(userData.pushover_key || "")
       setNotifyEmail(userData.notification_email || "")
-      // Parse platforms string "ps,steam" → ["ps", "steam"]
-      setSelectedPlatforms((userData.platforms || "ps").split(",").map(p => p.trim()))
+      // Parse platforms string "ps,steam" → ["ps", "steam"], filter out switch
+      const platforms = (userData.platforms || "ps")
+        .split(",")
+        .map(p => p.trim())
+        .filter(p => p !== "switch")
+      setSelectedPlatforms(platforms)
     } catch (e) {
       setError(e.message)
     }
@@ -84,8 +86,8 @@ export default function Dashboard({ token, onLogout }) {
       await apiRequest("/auth/me", {
         method: "PUT",
         body: JSON.stringify({
-          pushover_key:       pushover      || null,
-          notification_email: notifyEmail   || null,
+          pushover_key:       pushover    || null,
+          notification_email: notifyEmail || null,
           platforms:          selectedPlatforms.join(","),
         }),
       }, token)
@@ -167,9 +169,9 @@ export default function Dashboard({ token, onLogout }) {
                   onClick={() => togglePlatform(p.key)}
                   style={{
                     ...styles.platformBtn,
-                    background:  active ? p.color : "#0f3460",
-                    border:      active ? `2px solid ${p.color}` : "2px solid #333",
-                    opacity:     active ? 1 : 0.5,
+                    background: active ? p.color : "#0f3460",
+                    border:     active ? `2px solid ${p.color}` : "2px solid #333",
+                    opacity:    active ? 1 : 0.5,
                   }}
                 >
                   <span style={styles.platformEmoji}>{p.emoji}</span>
@@ -244,7 +246,7 @@ const styles = {
   label:        { color: "#aaa", fontSize: "0.85rem", display: "block", marginBottom: "0.75rem" },
   hint:         { color: "#666", fontSize: "0.8rem", marginTop: "-0.25rem", marginBottom: "1rem" },
   link:         { color: "#0070cc" },
-  platformGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" },
+  platformGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1rem" },
   platformBtn:  { display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", borderRadius: "8px", color: "#fff", cursor: "pointer", fontSize: "0.95rem", transition: "all 0.2s", position: "relative" },
   platformEmoji:{ fontSize: "1.2rem" },
   platformLabel:{ fontWeight: "bold" },
