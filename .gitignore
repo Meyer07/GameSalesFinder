@@ -1,7 +1,17 @@
-.env
-requirements.txt
+# Python
 venv/
 __pycache__/
 *.pyc
+*.pyo
 .env
+
+# Frontend
+frontend/node_modules/
+frontend/.vite/
+
+# OS
+.DS_Store
+
+# Database
 *.db
+*.sqlite
