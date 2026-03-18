@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pydantic[email]
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+requests
+selenium
+webdriver-manager
+apscheduler
+httpx
+python-multipart
