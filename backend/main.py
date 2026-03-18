@@ -15,7 +15,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://your-app.vercel.app",   # ← replace with your real Vercel URL after deploying
+        "game-sales-finder.vercel.app",   # ← replace with your real Vercel URL after deploying
     ],
     allow_credentials=True,
     allow_methods=["*"],
