@@ -13,8 +13,12 @@ app = FastAPI(title="PS Deals Notifier", version="1.0.0")
 # CORS — allow React frontend to communicate with the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:5173",
+        "https://game-sales-finder.vercel.app",
+        "https://game-sales-finder-git-main-meyer07s-projects.vercel.app",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
