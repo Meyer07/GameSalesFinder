@@ -17,7 +17,12 @@ SECRETKEY=os.getenv("SECRETKEY","changethis")
 ALGORITHM=os.getenv("ALGORITHM","HS256")
 ACCESS_TOKEN_EXPIRE=int(os.getenv("TOKEN_EXPIRATION","10080"))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+pwd_context = CryptContext(
+    schemes=["bcrypt"], 
+    deprecated="auto", 
+    bcrypt__rounds=12,
+    bcrypt__ident="2b"
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
