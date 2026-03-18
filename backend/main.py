@@ -15,7 +15,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://game-sales-finder.vercel.app",   # ← replace with your real Vercel URL after deploying
+        "https://game-sales-finder.vercel.app",   
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -26,6 +26,8 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(wishlist.router)
 
+
+models.Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 def root():
