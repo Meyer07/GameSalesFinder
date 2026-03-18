@@ -35,7 +35,7 @@ export default function Login({onLogin , onSignup})
     return (
         <div style={styles.container}>
           <div style={styles.card}>
-            <h1 style={styles.title}>🎮 PS Deals</h1>
+            <h1 style={styles.title}>🎮 Game Deals Finder</h1>
             <p style={styles.subtitle}>Sign in to manage your wishlist</p>
     
             {error && <div style={styles.error}>{error}</div>}
