@@ -186,3 +186,7 @@ def test_switch_html():
     """)
     driver.quit()
     return result
+
+@app.get("/health")
+async def health_check():
+    return {"status": "awake"}
