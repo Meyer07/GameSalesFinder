@@ -13,3 +13,4 @@ webdriver-manager
 apscheduler
 httpx
 python-multipart
+pytz

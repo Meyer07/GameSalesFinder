@@ -11,6 +11,7 @@ from database import SessionLocal
 from fetcher import fetchDealsForPlatforms, filterWishlistDeals
 from notifications import sendEmail, sendPushover
 import models
+import pytz
 
 
 def runDailyDealsJob():
@@ -62,7 +63,7 @@ def runDailyDealsJob():
 
 def startScheduler():
     """Start as a background scheduler (used inside FastAPI on startup)."""
-    scheduler = BackgroundScheduler()
+    scheduler = BackgroundScheduler(timezone=pytz.timezone("America/Chicago"))
     scheduler.add_job(runDailyDealsJob, "cron", hour=9, minute=0)
     scheduler.start()
     return scheduler
@@ -71,6 +72,6 @@ def startScheduler():
 if __name__ == "__main__":
     """Run standalone as a blocking scheduler."""
     print("[scheduler] Starting standalone scheduler, runs daily at 9am...")
-    scheduler = BlockingScheduler()
+    scheduler = BlockingScheduler(timezone=pytz.timezone("America/Chicago"))
     scheduler.add_job(runDailyDealsJob, "cron", hour=9, minute=0)
     scheduler.start()
