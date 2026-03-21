@@ -1,3 +1,4 @@
+import os
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -24,8 +25,17 @@ def _makeDriver():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
     options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+    # Use system Chromium on Render, fall back to ChromeDriverManager locally
+    if os.path.exists("/usr/bin/chromium-browser"):
+        options.binary_location = "/usr/bin/chromium-browser"
+        service = Service("/usr/bin/chromedriver")
+    else:
+        service = Service(ChromeDriverManager().install())
+
+    return webdriver.Chrome(service=service, options=options)
 
 
 def _scrapeDeals(driver, url: str, platform_key: str) -> list[dict]:
@@ -77,7 +87,7 @@ def fetchDealsForPlatforms(platforms: list[str]) -> list[dict]:
     """Fetch deals for a list of platform keys e.g. ['ps', 'steam', 'xbox']"""
     all_deals = []
 
-    # Filter out any unsupported platforms (e.g. switch if a user has it saved)
+    # Filter out any unsupported platforms
     supported = [p for p in platforms if p in PLATFORM_URLS]
 
     if not supported:
