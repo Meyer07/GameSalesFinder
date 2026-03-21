@@ -123,3 +123,9 @@ def test_notify():
     steam = _runNotifyForPlatform("steam")
     xbox  = _runNotifyForPlatform("xbox")
     return {"ps": ps, "steam": steam, "xbox": xbox}
+
+@app.get("/debug-playwright")
+def debug_playwright():
+    import subprocess
+    result = subprocess.getoutput("find /opt/render/project/src/.playwright -name 'chrome*' 2>/dev/null")
+    return {"playwright_path": result}
