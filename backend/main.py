@@ -35,7 +35,15 @@ def root():
     return {"message": "PS Deals Notifier API is running"}
 
 
-
+@app.on_event("startup")
+async def startup():
+    import subprocess
+    import threading
+    def install_chromium():
+        subprocess.run(["playwright", "install", "chromium"], check=True)
+        print("[✓] Playwright Chromium installed.")
+    threading.Thread(target=install_chromium, daemon=True).start()
+    print("[✓] Server started, installing Chromium in background...")
 
 # ── Test Endpoints (remove before deploying to production) ────────────────────
 
