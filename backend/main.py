@@ -155,3 +155,16 @@ def test_match(platform: str = "ps"):
 @app.get("/health")
 async def health_check():
     return {"status": "awake"}
+
+@app.get("/debug-chrome")
+def debug_chrome():
+    import subprocess
+    import os
+    return {
+        "chromium":         os.path.exists("/usr/bin/chromium"),
+        "chromium_browser": os.path.exists("/usr/bin/chromium-browser"),
+        "chromedriver":     os.path.exists("/usr/bin/chromedriver"),
+        "which_chromium":   subprocess.getoutput("which chromium"),
+        "which_chrome":     subprocess.getoutput("which google-chrome"),
+        "find_chromium":    subprocess.getoutput("find /usr -name 'chrom*' 2>/dev/null"),
+    }
