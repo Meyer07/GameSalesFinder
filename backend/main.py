@@ -8,7 +8,7 @@ import os
 # Create all database tables on startup
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="PS Deals Notifier", version="1.0.0")
+app = FastAPI(title="Game Sales Notifier", version="1.0.0")
 
 # CORS — allow React frontend to communicate with the API
 app.add_middleware(
@@ -28,31 +28,20 @@ app.include_router(users.router)
 app.include_router(wishlist.router)
 
 
-models.Base.metadata.create_all(bind=engine)
-
 @app.get("/")
 def root():
-    return {"message": "PS Deals Notifier API is running"}
+    return {"message": "Game Sales Notifier API is running"}
 
 
-@app.on_event("startup")
-async def startup():
-    import subprocess
-    import threading
-    def install_chromium():
-        subprocess.run(["playwright", "install", "chromium"], check=True)
-        print("[✓] Playwright Chromium installed.")
-    threading.Thread(target=install_chromium, daemon=True).start()
-    print("[✓] Server started, installing Chromium in background...")
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
-# ── Test Endpoints (remove before deploying to production) ────────────────────
 
-@app.get("/test-notify")
-def test_notify():
-    """
-    Runs the full notification job for all users using their saved platform preferences.
-    Visit: http://localhost:8000/test-notify
-    """
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+def _runNotifyForPlatform(platform_key: str):
+    """Fetch deals for one platform and notify users who have it selected."""
     from fetcher import fetchDealsForPlatforms, filterWishlistDeals
     from notifications import sendEmail, sendPushover
     from database import SessionLocal
@@ -61,26 +50,26 @@ def test_notify():
     results = []
 
     try:
+        deals = fetchDealsForPlatforms([platform_key])
+        if not deals:
+            return {"platform": platform_key, "status": "no deals fetched", "results": []}
+
         active_users = db.query(models.User).filter(models.User.is_active == True).all()
-        platform_cache: dict[str, list] = {}
 
         for user in active_users:
+            # Only notify users who have this platform selected
+            user_platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
+            if platform_key not in user_platforms:
+                continue
+
             wishlist_titles = [item.game_title for item in user.wishlist]
             if not wishlist_titles:
                 results.append({"user": user.email, "status": "skipped — no wishlist"})
                 continue
 
-            platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
-            cache_key = ",".join(sorted(platforms))
-
-            if cache_key not in platform_cache:
-                platform_cache[cache_key] = fetchDealsForPlatforms(platforms)
-
-            deals = platform_cache[cache_key]
             matched = filterWishlistDeals(deals, wishlist_titles)
-
             if not matched:
-                results.append({"user": user.email, "status": "no matches", "platforms": platforms})
+                results.append({"user": user.email, "status": "no matches"})
                 continue
 
             notify_email = user.notification_email or user.email
@@ -89,90 +78,48 @@ def test_notify():
                 sendPushover(user.pushover_key, matched)
 
             results.append({
-                "user":      user.email,
-                "platforms": platforms,
-                "matches":   [f"{d['name']} ({d.get('platform_label','')}) — {d['sale_price']} ({d['discount']}% OFF)" for d in matched],
-                "status":    "notified"
+                "user":    user.email,
+                "matches": [f"{d['name']} — {d['sale_price']} ({d['discount']}% OFF)" for d in matched],
+                "status":  "notified"
             })
-    finally:
-        db.close()
 
-    return {"results": results}
-
-
-@app.get("/test-deals")
-def test_deals(platform: str = "ps"):
-    """
-    Fetch deals for a specific platform and return them.
-    Usage:
-      http://localhost:8000/test-deals           → PlayStation (default)
-      http://localhost:8000/test-deals?platform=steam
-      http://localhost:8000/test-deals?platform=switch
-      http://localhost:8000/test-deals?platform=xbox
-      http://localhost:8000/test-deals?platform=ps,steam  → multiple platforms
-    """
-    from fetcher import fetchDealsForPlatforms
-
-    platforms = [p.strip() for p in platform.split(",")]
-    deals = fetchDealsForPlatforms(platforms)
-    return {
-        "platforms": platforms,
-        "count":     len(deals),
-        "deals":     deals
-    }
-
-
-@app.get("/test-match")
-def test_match(platform: str = "ps"):
-    """
-    Fetch deals for a platform and check which wishlist games match for each user.
-    Useful for debugging before sending notifications.
-    Usage:
-      http://localhost:8000/test-match
-      http://localhost:8000/test-match?platform=steam
-      http://localhost:8000/test-match?platform=ps,steam,switch,xbox
-    """
-    from fetcher import fetchDealsForPlatforms, filterWishlistDeals
-    from database import SessionLocal
-
-    db = SessionLocal()
-    results = []
-
-    try:
-        platforms = [p.strip() for p in platform.split(",")]
-        deals = fetchDealsForPlatforms(platforms)
-
-        active_users = db.query(models.User).filter(models.User.is_active == True).all()
-        for user in active_users:
-            wishlist_titles = [item.game_title for item in user.wishlist]
-            matched = filterWishlistDeals(deals, wishlist_titles)
-            results.append({
-                "user":      user.email,
-                "platforms": platforms,
-                "wishlist":  wishlist_titles,
-                "matches":   [f"{d['name']} ({d.get('platform_label','')}) — {d['sale_price']} ({d['discount']}% OFF)" for d in matched],
-            })
     finally:
         db.close()
 
     return {
-        "platforms":    platforms,
-        "total_deals":  len(deals),
-        "user_results": results
+        "platform": platform_key,
+        "deals_found": len(deals),
+        "results": results
     }
 
-@app.get("/health")
-async def health_check():
-    return {"status": "awake"}
 
-@app.get("/debug-chrome")
-def debug_chrome():
-    import subprocess
-    return {
-        "chromium":         os.path.exists("/usr/bin/chromium"),
-        "chromium_browser": os.path.exists("/usr/bin/chromium-browser"),
-        "chromedriver":     os.path.exists("/usr/bin/chromedriver"),
-        "which_chromium":   subprocess.getoutput("which chromium"),
-        "which_chrome":     subprocess.getoutput("which google-chrome"),
-        "find_chromium":    subprocess.getoutput("find /usr -name 'chrom*' 2>/dev/null"),
-    }
+# ── Per-Platform Notify Endpoints ─────────────────────────────────────────────
+# Point cron-job.org at each of these at staggered times:
+#   9:00am → /notify-ps
+#   9:05am → /notify-steam
+#   9:10am → /notify-xbox
+
+@app.get("/notify-ps")
+def notify_ps():
+    return _runNotifyForPlatform("ps")
+
+
+@app.get("/notify-steam")
+def notify_steam():
+    return _runNotifyForPlatform("steam")
+
+
+@app.get("/notify-xbox")
+def notify_xbox():
+    return _runNotifyForPlatform("xbox")
+
+
+# ── Combined notify (for local testing only) ──────────────────────────────────
+
+@app.get("/test-notify")
+def test_notify():
+    """Run all platforms at once — for local testing only, too slow for production."""
+    ps    = _runNotifyForPlatform("ps")
+    steam = _runNotifyForPlatform("steam")
+    xbox  = _runNotifyForPlatform("xbox")
+    return {"ps": ps, "steam": steam, "xbox": xbox}
