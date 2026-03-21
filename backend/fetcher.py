@@ -19,8 +19,8 @@ PLATFORM_LABELS = {
 def _scrapeDeals(page, url: str, platform_key: str) -> list[dict]:
     """Scrape deals from a DekuDeals page using Playwright."""
     try:
-        page.goto(url, wait_until="networkidle", timeout=30000)
-        page.wait_for_timeout(5000)
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(8000)
 
         deals_data = page.evaluate("""
             () => {
