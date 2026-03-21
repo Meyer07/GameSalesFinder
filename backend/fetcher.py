@@ -29,14 +29,16 @@ def _makeDriver():
     options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     # Use system Chromium on Render, fall back to ChromeDriverManager locally
-    if os.path.exists("/usr/bin/chromium-browser"):
+    if os.path.exists("/usr/bin/chromium"):
+        options.binary_location = "/usr/bin/chromium"
+        service = Service("/usr/bin/chromedriver")
+    elif os.path.exists("/usr/bin/chromium-browser"):
         options.binary_location = "/usr/bin/chromium-browser"
         service = Service("/usr/bin/chromedriver")
     else:
         service = Service(ChromeDriverManager().install())
 
     return webdriver.Chrome(service=service, options=options)
-
 
 def _scrapeDeals(driver, url: str, platform_key: str) -> list[dict]:
     """Scrape deals from a DekuDeals page."""
