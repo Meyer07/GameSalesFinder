@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
 from routes import users, wishlist
-from scheduler import startScheduler
 
 # Create all database tables on startup
 models.Base.metadata.create_all(bind=engine)
@@ -35,10 +34,6 @@ def root():
     return {"message": "PS Deals Notifier API is running"}
 
 
-@app.on_event("startup")
-def startup():
-    startScheduler()
-    print("[✓] Background scheduler started.")
 
 
 # ── Test Endpoints (remove before deploying to production) ────────────────────
@@ -156,36 +151,6 @@ def test_match(platform: str = "ps"):
         "total_deals":  len(deals),
         "user_results": results
     }
-
-@app.get("/test-switch-html")
-def test_switch_html():
-    import time
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-    from webdriver_manager.chrome import ChromeDriverManager
-
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.get("https://www.dekudeals.com/eshop-sales")
-    time.sleep(8)
-
-    result = driver.execute_script("""
-        return {
-            col_dblock: document.querySelectorAll('.col.d-block').length,
-            col_cell: document.querySelectorAll('.col.cell').length,
-            main_link: document.querySelectorAll('a.main-link').length,
-            h6_name: document.querySelectorAll('div.h6.name').length,
-            body_snippet: document.body.innerHTML.substring(0, 2000)
-        }
-    """)
-    driver.quit()
-    return result
 
 @app.get("/health")
 async def health_check():
