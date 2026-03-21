@@ -4,13 +4,12 @@ sqlalchemy
 psycopg2-binary
 pydantic[email]
 python-jose[cryptography]
-bcrypt==4.0.1
 passlib[bcrypt]
 python-dotenv
 requests
-selenium
-webdriver-manager
+playwright
 apscheduler
 httpx
 python-multipart
+bcrypt==4.0.1
 pytz

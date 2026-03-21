@@ -3,7 +3,7 @@ services:
     name: psdeals-api
     runtime: python
     rootDir: backend
-    buildCommand: chmod +x build.sh && ./build.sh
+    buildCommand: pip install -r requirements.txt && playwright install chromium
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL

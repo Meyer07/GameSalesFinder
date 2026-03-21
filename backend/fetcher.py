@@ -1,9 +1,5 @@
-import os
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import sync_playwright
 
 MAX_DEALS = 200
 
@@ -20,51 +16,33 @@ PLATFORM_LABELS = {
 }
 
 
-def _makeDriver():
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-    # Use system Chromium on Render, fall back to ChromeDriverManager locally
-    if os.path.exists("/usr/bin/chromium"):
-        options.binary_location = "/usr/bin/chromium"
-        service = Service("/usr/bin/chromedriver")
-    elif os.path.exists("/usr/bin/chromium-browser"):
-        options.binary_location = "/usr/bin/chromium-browser"
-        service = Service("/usr/bin/chromedriver")
-    else:
-        service = Service(ChromeDriverManager().install())
-
-    return webdriver.Chrome(service=service, options=options)
-
-def _scrapeDeals(driver, url: str, platform_key: str) -> list[dict]:
-    """Scrape deals from a DekuDeals page."""
+def _scrapeDeals(page, url: str, platform_key: str) -> list[dict]:
+    """Scrape deals from a DekuDeals page using Playwright."""
     try:
-        driver.get(url)
-        time.sleep(8)
+        page.goto(url, wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(5000)
 
-        deals_data = driver.execute_script("""
-            const results = [];
-            document.querySelectorAll('.col.d-block').forEach(card => {
-                const titleEl    = card.querySelector('a.main-link h6');
-                const linkEl     = card.querySelector('a.main-link');
-                const priceEl    = card.querySelector('strong');
-                const originalEl = card.querySelector('s.text-muted');
-                const discountEl = card.querySelector('span.badge-danger');
-                if (titleEl && priceEl) {
-                    results.push({
-                        name:     titleEl.innerText.trim(),
-                        url:      linkEl ? linkEl.href : '',
-                        price:    priceEl.innerText.trim(),
-                        original: originalEl ? originalEl.innerText.trim() : 'N/A',
-                        discount: discountEl ? discountEl.innerText.trim().replace('%','').replace('-','') : '?'
-                    });
-                }
-            });
-            return results;
+        deals_data = page.evaluate("""
+            () => {
+                const results = [];
+                document.querySelectorAll('.col.d-block').forEach(card => {
+                    const titleEl    = card.querySelector('a.main-link h6');
+                    const linkEl     = card.querySelector('a.main-link');
+                    const priceEl    = card.querySelector('strong');
+                    const originalEl = card.querySelector('s.text-muted');
+                    const discountEl = card.querySelector('span.badge-danger');
+                    if (titleEl && priceEl) {
+                        results.push({
+                            name:     titleEl.innerText.trim(),
+                            url:      linkEl ? linkEl.href : '',
+                            price:    priceEl.innerText.trim(),
+                            original: originalEl ? originalEl.innerText.trim() : 'N/A',
+                            discount: discountEl ? discountEl.innerText.trim().replace('%','').replace('-','') : '?'
+                        });
+                    }
+                });
+                return results;
+            }
         """)
 
         deals = [{
@@ -96,13 +74,22 @@ def fetchDealsForPlatforms(platforms: list[str]) -> list[dict]:
         print("[WARN] No supported platforms in list.")
         return []
 
-    driver = _makeDriver()
-    try:
-        for platform in supported:
-            deals = _scrapeDeals(driver, PLATFORM_URLS[platform], platform)
-            all_deals.extend(deals)
-    finally:
-        driver.quit()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
+
+        try:
+            for platform in supported:
+                deals = _scrapeDeals(page, PLATFORM_URLS[platform], platform)
+                all_deals.extend(deals)
+        finally:
+            browser.close()
 
     print(f"[✓] Total deals fetched across all platforms: {len(all_deals)}")
     return all_deals
