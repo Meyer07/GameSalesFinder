@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
 from routes import users, wishlist
+import os
 
 # Create all database tables on startup
 models.Base.metadata.create_all(bind=engine)
@@ -159,7 +160,6 @@ async def health_check():
 @app.get("/debug-chrome")
 def debug_chrome():
     import subprocess
-    import os
     return {
         "chromium":         os.path.exists("/usr/bin/chromium"),
         "chromium_browser": os.path.exists("/usr/bin/chromium-browser"),
