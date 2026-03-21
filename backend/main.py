@@ -4,6 +4,7 @@ from database import engine
 import models
 from routes import users, wishlist
 import os
+import threading
 
 # Create all database tables on startup
 models.Base.metadata.create_all(bind=engine)
@@ -93,36 +94,25 @@ def _runNotifyForPlatform(platform_key: str):
     }
 
 
-# ── Per-Platform Notify Endpoints ─────────────────────────────────────────────
-# Point cron-job.org at each of these at staggered times:
-#   9:00am → /notify-ps
-#   9:05am → /notify-steam
-#   9:10am → /notify-xbox
+def _runInBackground(platform_key: str):
+    """Run notify job in background thread so endpoint returns immediately."""
+    thread = threading.Thread(target=_runNotifyForPlatform, args=(platform_key,), daemon=True)
+    thread.start()
 
 @app.get("/notify-ps")
 def notify_ps():
-    return _runNotifyForPlatform("ps")
-
+    _runInBackground("ps")
+    return {"status": "PS notify job started"}
 
 @app.get("/notify-steam")
 def notify_steam():
-    return _runNotifyForPlatform("steam")
-
+    _runInBackground("steam")
+    return {"status": "Steam notify job started"}
 
 @app.get("/notify-xbox")
 def notify_xbox():
-    return _runNotifyForPlatform("xbox")
-
-
-# ── Combined notify (for local testing only) ──────────────────────────────────
-
-@app.get("/test-notify")
-def test_notify():
-    """Run all platforms at once — for local testing only, too slow for production."""
-    ps    = _runNotifyForPlatform("ps")
-    steam = _runNotifyForPlatform("steam")
-    xbox  = _runNotifyForPlatform("xbox")
-    return {"ps": ps, "steam": steam, "xbox": xbox}
+    _runInBackground("xbox")
+    return {"status": "Xbox notify job started"}
 
 @app.get("/debug-playwright")
 def debug_playwright():
