@@ -119,3 +119,29 @@ def debug_playwright():
     import subprocess
     result = subprocess.getoutput("find /opt/render/project/src/.playwright -name 'chrome*' 2>/dev/null")
     return {"playwright_path": result}
+
+@app.get("/debug-steam")
+def debug_steam():
+    from fetcher import fetchDealsForPlatforms, filterWishlistDeals
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        deals = fetchDealsForPlatforms(["steam"])
+        users = db.query(models.User).filter(models.User.is_active == True).all()
+        results = []
+        for user in users:
+            platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
+            if "steam" not in platforms:
+                continue
+            wishlist = [item.game_title for item in user.wishlist]
+            matched = filterWishlistDeals(deals, wishlist)
+            results.append({
+                "user": user.email,
+                "wishlist": wishlist,
+                "matched": [d["name"] for d in matched],
+                "sample_deals": [d["name"] for d in deals[:10]]
+            })
+        return {"results": results}
+    finally:
+        db.close()
