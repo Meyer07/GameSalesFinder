@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ITAD_API_KEY = os.getenv("ITAD_API_KEY", "YOUR_ITAD_API_KEY_HERE")
+ITAD_API_KEY = os.getenv("ITAD_API_KEY")
 
 PLATFORM_SHOPS = {
     "ps":    ["ps5", "ps4"],
