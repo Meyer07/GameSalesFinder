@@ -152,3 +152,31 @@ def debug_wishlist(platform: str = "ps"):
         db.close()
 
     return {"platform": platform, "results": results}
+
+@app.get("/debug-search")
+def debug_search(q: str = "Red Dead Redemption 2", platform: str = "steam"):
+    from playwright.sync_api import sync_playwright
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
+        query = q.replace(" ", "+")
+        url = f"https://www.dekudeals.com/search?q={query}&filter[platform]={platform}&filter[discount]=discounted"
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(3000)
+        
+        result = page.evaluate("""
+            () => ({
+                col_dblock: document.querySelectorAll('.col.d-block').length,
+                col_cell: document.querySelectorAll('.col.cell').length,
+                body_snippet: document.body.innerHTML.substring(0, 1000)
+            })
+        """)
+        browser.close()
+    return result
