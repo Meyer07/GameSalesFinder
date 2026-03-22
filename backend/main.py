@@ -154,9 +154,36 @@ def debug_wishlist(platform: str = "ps"):
 
     return {"platform": platform, "results": results}
 
-@app.get("/debug-env")
-def debug_env():
+@app.get("/debug-itad")
+def debug_itad(game: str = "Red Dead Redemption 2"):
+    import requests
+    import os
+    
+    api_key = os.getenv("ITAD_API_KEY")
+    
+    # Step 1: Search for game
+    search_resp = requests.get(
+        "https://api.isthereanydeal.com/games/search/v1",
+        params={"key": api_key, "title": game, "limit": 1},
+        timeout=10
+    )
+    search_data = search_resp.json()
+    
+    if not search_data:
+        return {"error": "Game not found", "game": game}
+    
+    game_id = search_data[0].get("id")
+    
+    # Step 2: Get prices
+    price_resp = requests.post(
+        "https://api.isthereanydeal.com/games/prices/v3",
+        params={"key": api_key, "country": "US"},
+        json=[game_id],
+        timeout=10
+    )
+    
     return {
-        "ITAD_API_KEY_set": os.getenv("ITAD_API_KEY") is not None,
-        "ITAD_API_KEY_length": len(os.getenv("ITAD_API_KEY", "")) 
+        "game": game,
+        "game_id": game_id,
+        "raw_price_response": price_resp.json()
     }
