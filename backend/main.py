@@ -4,6 +4,7 @@ from database import engine
 import models
 from routes import users, wishlist
 import threading
+import os
 
 # Create all database tables on startup
 models.Base.metadata.create_all(bind=engine)
@@ -153,3 +154,9 @@ def debug_wishlist(platform: str = "ps"):
 
     return {"platform": platform, "results": results}
 
+@app.get("/debug-env")
+def debug_env():
+    return {
+        "ITAD_API_KEY_set": os.getenv("ITAD_API_KEY") is not None,
+        "ITAD_API_KEY_length": len(os.getenv("ITAD_API_KEY", "")) 
+    }
