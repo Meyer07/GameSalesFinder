@@ -6,10 +6,11 @@ load_dotenv()
 
 ITAD_API_KEY = os.getenv("ITAD_API_KEY")
 
+# ITAD numeric shop IDs
 PLATFORM_SHOPS = {
-    "ps":    ["ps5", "ps4"],
-    "steam": ["steam"],
-    "xbox":  ["xboxone", "xbox360"],
+    "ps":    [183, 184],  # PSN PS4=183, PS5=184
+    "steam": [61],        # Steam
+    "xbox":  [185, 186],  # Xbox One=185, Xbox Series X=186
 }
 
 PLATFORM_LABELS = {
@@ -42,7 +43,7 @@ def _searchGame(game_title: str) -> str | None:
         return None
 
 
-def _getGamePrice(game_id: str, shops: list[str]) -> dict | None:
+def _getGamePrice(game_id: str, shops: list[int]) -> dict | None:
     """Get current price for a game on specific shops, returns deal if on sale."""
     try:
         url = "https://api.isthereanydeal.com/games/prices/v3"
@@ -50,8 +51,7 @@ def _getGamePrice(game_id: str, shops: list[str]) -> dict | None:
             "key":     ITAD_API_KEY,
             "country": "US",
         }
-        body = [game_id]
-        resp = requests.post(url, params=params, json=body, timeout=10)
+        resp = requests.post(url, params=params, json=[game_id], timeout=10)
         resp.raise_for_status()
         data = resp.json()
 
@@ -61,22 +61,23 @@ def _getGamePrice(game_id: str, shops: list[str]) -> dict | None:
         game_data = data[0]
         deals = game_data.get("deals", [])
 
-        # Filter to only deals from our target shops
+        # Filter to only deals from our target shops that have a discount
         for deal in deals:
-            shop_id = deal.get("shop", {}).get("id", "")
-            if shop_id in shops and deal.get("price", {}).get("cut", 0) > 0:
-                regular = deal.get("regular", {}).get("amount", 0)
-                sale    = deal.get("price", {}).get("amount", 0)
-                cut     = deal.get("price", {}).get("cut", 0)
-                url_buy = deal.get("url", "")
-                shop_name = deal.get("shop", {}).get("name", shop_id)
+            shop_id = deal.get("shop", {}).get("id")
+            cut     = deal.get("price", {}).get("cut", 0)
+
+            if shop_id in shops and cut > 0:
+                regular   = deal.get("regular", {}).get("amount", 0)
+                sale      = deal.get("price", {}).get("amount", 0)
+                url_buy   = deal.get("url", "")
+                shop_name = deal.get("shop", {}).get("name", str(shop_id))
 
                 return {
-                    "sale_price":     f"${sale:.2f}",
-                    "regular_price":  f"${regular:.2f}",
-                    "discount":       str(cut),
-                    "url":            url_buy,
-                    "shop":           shop_name,
+                    "sale_price":    f"${sale:.2f}",
+                    "regular_price": f"${regular:.2f}",
+                    "discount":      str(cut),
+                    "url":           url_buy,
+                    "shop":          shop_name,
                 }
 
         return None
