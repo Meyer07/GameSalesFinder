@@ -1,10 +1,15 @@
-import time
-from playwright.sync_api import sync_playwright
+import requests
+import os
+from dotenv import load_dotenv
 
-PLATFORM_FILTERS = {
-    "ps":    "ps4,ps5",
-    "steam": "steam",
-    "xbox":  "xbox-one,xbox-series-x",
+load_dotenv()
+
+ITAD_API_KEY = os.getenv("ITAD_API_KEY", "YOUR_ITAD_API_KEY_HERE")
+
+PLATFORM_SHOPS = {
+    "ps":    ["ps5", "ps4"],
+    "steam": ["steam"],
+    "xbox":  ["xboxone", "xbox360"],
 }
 
 PLATFORM_LABELS = {
@@ -14,94 +19,109 @@ PLATFORM_LABELS = {
 }
 
 
-def _searchGame(page, game_title: str, platform_key: str) -> dict | None:
-    """Search DekuDeals for a specific game on a specific platform and check if it's on sale."""
+def _searchGame(game_title: str) -> str | None:
+    """Search ITAD for a game and return its ITAD ID."""
     try:
-        platform_filter = PLATFORM_FILTERS[platform_key]
-        query = game_title.replace(" ", "+")
-        url = f"https://www.dekudeals.com/search?q={query}&filter[platform]={platform_filter}&filter[discount]=discounted"
+        url = "https://api.isthereanydeal.com/games/search/v1"
+        params = {
+            "key":   ITAD_API_KEY,
+            "title": game_title,
+            "limit": 1,
+        }
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
 
-        page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(3000)
+        if not data:
+            return None
 
-        result = page.evaluate("""
-            () => {
-                // Try list view first
-                const firstItem = document.querySelector('.col.d-block');
-                if (firstItem) {
-                    const titleEl    = firstItem.querySelector('a.main-link h6');
-                    const linkEl     = firstItem.querySelector('a.main-link');
-                    const priceEl    = firstItem.querySelector('strong');
-                    const originalEl = firstItem.querySelector('s.text-muted');
-                    const discountEl = firstItem.querySelector('span.badge-danger');
-                    if (titleEl && priceEl) {
-                        return {
-                            name:     titleEl.innerText.trim(),
-                            url:      linkEl ? linkEl.href : '',
-                            price:    priceEl.innerText.trim(),
-                            original: originalEl ? originalEl.innerText.trim() : 'N/A',
-                            discount: discountEl ? discountEl.innerText.trim().replace('%','').replace('-','') : '?'
-                        };
-                    }
+        return data[0].get("id")
+
+    except Exception as e:
+        print(f"[ERROR] ITAD search failed for '{game_title}': {e}")
+        return None
+
+
+def _getGamePrice(game_id: str, shops: list[str]) -> dict | None:
+    """Get current price for a game on specific shops, returns deal if on sale."""
+    try:
+        url = "https://api.isthereanydeal.com/games/prices/v3"
+        params = {
+            "key":     ITAD_API_KEY,
+            "country": "US",
+        }
+        body = [game_id]
+        resp = requests.post(url, params=params, json=body, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if not data:
+            return None
+
+        game_data = data[0]
+        deals = game_data.get("deals", [])
+
+        # Filter to only deals from our target shops
+        for deal in deals:
+            shop_id = deal.get("shop", {}).get("id", "")
+            if shop_id in shops and deal.get("price", {}).get("cut", 0) > 0:
+                regular = deal.get("regular", {}).get("amount", 0)
+                sale    = deal.get("price", {}).get("amount", 0)
+                cut     = deal.get("price", {}).get("cut", 0)
+                url_buy = deal.get("url", "")
+                shop_name = deal.get("shop", {}).get("name", shop_id)
+
+                return {
+                    "sale_price":     f"${sale:.2f}",
+                    "regular_price":  f"${regular:.2f}",
+                    "discount":       str(cut),
+                    "url":            url_buy,
+                    "shop":           shop_name,
                 }
-                return null;
-            }
-        """)
 
-        if result:
-            return {
-                "name":           result["name"],
-                "sale_price":     result["price"],
-                "regular_price":  result["original"],
-                "discount":       result["discount"],
-                "url":            result["url"],
-                "platform":       platform_key,
-                "platform_label": PLATFORM_LABELS[platform_key],
-            }
         return None
 
     except Exception as e:
-        print(f"[ERROR] Search failed for '{game_title}' on {platform_key}: {e}")
+        print(f"[ERROR] ITAD price fetch failed for game ID '{game_id}': {e}")
         return None
 
 
 def fetchDealsForWishlist(wishlist: list[str], platforms: list[str]) -> list[dict]:
     """
-    Search DekuDeals for each wishlist game on each platform.
+    Search ITAD for each wishlist game on each platform.
     Returns only games that are currently on sale.
     """
     matched = []
-    supported = [p for p in platforms if p in PLATFORM_FILTERS]
+    supported = [p for p in platforms if p in PLATFORM_SHOPS]
 
     if not supported or not wishlist:
         return []
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = context.new_page()
+    for platform in supported:
+        shops = PLATFORM_SHOPS[platform]
+        print(f"[→] Checking {PLATFORM_LABELS[platform]} for {len(wishlist)} games...")
 
-        try:
-            for platform in supported:
-                print(f"[→] Searching {PLATFORM_LABELS[platform]} for {len(wishlist)} games...")
-                for game in wishlist:
-                    result = _searchGame(page, game, platform)
-                    if result:
-                        # Verify the result name loosely matches the search query
-                        if game.lower()[:6] in result["name"].lower():
-                            matched.append(result)
-                            print(f"[✓] Match: {result['name']} on {PLATFORM_LABELS[platform]} — {result['sale_price']} ({result['discount']}% OFF)")
-                        else:
-                            print(f"[~] Skipped unrelated result for '{game}': got '{result['name']}'")
-                    else:
-                        print(f"[✗] Not on sale: {game} on {PLATFORM_LABELS[platform]}")
-        finally:
-            browser.close()
+        for game in wishlist:
+            game_id = _searchGame(game)
+            if not game_id:
+                print(f"[✗] Not found on ITAD: {game}")
+                continue
+
+            deal = _getGamePrice(game_id, shops)
+            if deal:
+                matched.append({
+                    "name":           game,
+                    "sale_price":     deal["sale_price"],
+                    "regular_price":  deal["regular_price"],
+                    "discount":       deal["discount"],
+                    "url":            deal["url"],
+                    "platform":       platform,
+                    "platform_label": PLATFORM_LABELS[platform],
+                    "shop":           deal["shop"],
+                })
+                print(f"[✓] On sale: {game} on {deal['shop']} — {deal['sale_price']} ({deal['discount']}% OFF)")
+            else:
+                print(f"[✗] Not on sale: {game} on {PLATFORM_LABELS[platform]}")
 
     print(f"[✓] Total matches found: {len(matched)}")
     return matched
@@ -110,16 +130,13 @@ def fetchDealsForWishlist(wishlist: list[str], platforms: list[str]) -> list[dic
 # ── Backwards compatibility ────────────────────────────────────────────────────
 
 def fetchDealsForPlatforms(platforms: list[str]) -> list[dict]:
-    """
-    Legacy function — returns empty since we now search per-game.
-    Use fetchDealsForWishlist() instead.
-    """
+    """Legacy function — no longer used, use fetchDealsForWishlist instead."""
     print("[WARN] fetchDealsForPlatforms called — use fetchDealsForWishlist instead.")
     return []
 
 
 def fetchPsDeals() -> list[dict]:
-    """Backwards-compatible — returns empty, use fetchDealsForWishlist."""
+    """Legacy function — no longer used."""
     return []
 
 
