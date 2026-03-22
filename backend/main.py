@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
 from routes import users, wishlist
-import os
 import threading
 
 # Create all database tables on startup
@@ -42,23 +41,19 @@ def health():
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 def _runNotifyForPlatform(platform_key: str):
-    """Fetch deals for one platform and notify users who have it selected."""
-    from fetcher import fetchDealsForPlatforms, filterWishlistDeals
-    from notifications import sendEmail, sendPushover
+    """Search wishlist games for one platform and notify users with matches."""
+    from fetcher import fetchDealsForWishlist
+    from notifications import sendPushover
     from database import SessionLocal
 
     db = SessionLocal()
     results = []
 
     try:
-        deals = fetchDealsForPlatforms([platform_key])
-        if not deals:
-            return {"platform": platform_key, "status": "no deals fetched", "results": []}
-
         active_users = db.query(models.User).filter(models.User.is_active == True).all()
 
         for user in active_users:
-            # Only notify users who have this platform selected
+            # Only process users who have this platform selected
             user_platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
             if platform_key not in user_platforms:
                 continue
@@ -68,20 +63,20 @@ def _runNotifyForPlatform(platform_key: str):
                 results.append({"user": user.email, "status": "skipped — no wishlist"})
                 continue
 
-            matched = filterWishlistDeals(deals, wishlist_titles)
+            # Search DekuDeals for each wishlist game on this platform
+            matched = fetchDealsForWishlist(wishlist_titles, [platform_key])
+
             if not matched:
                 results.append({"user": user.email, "status": "no matches"})
                 continue
 
-            notify_email = user.notification_email or user.email
-            sendEmail(notify_email, matched)
             if user.pushover_key:
                 sendPushover(user.pushover_key, matched)
 
             results.append({
                 "user":    user.email,
                 "matches": [f"{d['name']} — {d['sale_price']} ({d['discount']}% OFF)" for d in matched],
-                "status":  "notified"
+                "status":  "notified via pushover"
             })
 
     finally:
@@ -89,8 +84,7 @@ def _runNotifyForPlatform(platform_key: str):
 
     return {
         "platform": platform_key,
-        "deals_found": len(deals),
-        "results": results
+        "results":  results
     }
 
 
@@ -99,49 +93,62 @@ def _runInBackground(platform_key: str):
     thread = threading.Thread(target=_runNotifyForPlatform, args=(platform_key,), daemon=True)
     thread.start()
 
+
+# ── Per-Platform Notify Endpoints ─────────────────────────────────────────────
+# Point cron-job.org at each of these at staggered times:
+#   9:00am → /notify-ps
+#   9:15am → /notify-steam
+#   9:30am → /notify-xbox
+
 @app.get("/notify-ps")
 def notify_ps():
     _runInBackground("ps")
     return {"status": "PS notify job started"}
+
 
 @app.get("/notify-steam")
 def notify_steam():
     _runInBackground("steam")
     return {"status": "Steam notify job started"}
 
+
 @app.get("/notify-xbox")
 def notify_xbox():
     _runInBackground("xbox")
     return {"status": "Xbox notify job started"}
 
-@app.get("/debug-playwright")
-def debug_playwright():
-    import subprocess
-    result = subprocess.getoutput("find /opt/render/project/src/.playwright -name 'chrome*' 2>/dev/null")
-    return {"playwright_path": result}
 
-@app.get("/debug-steam")
-def debug_steam():
-    from fetcher import fetchDealsForPlatforms, filterWishlistDeals
+# ── Debug endpoint ────────────────────────────────────────────────────────────
+
+@app.get("/debug-wishlist")
+def debug_wishlist(platform: str = "ps"):
+    """
+    Check what games would match for each user on a given platform.
+    Usage:
+      /debug-wishlist?platform=ps
+      /debug-wishlist?platform=steam
+      /debug-wishlist?platform=xbox
+    """
+    from fetcher import fetchDealsForWishlist
     from database import SessionLocal
 
     db = SessionLocal()
+    results = []
+
     try:
-        deals = fetchDealsForPlatforms(["steam"])
-        users = db.query(models.User).filter(models.User.is_active == True).all()
-        results = []
-        for user in users:
-            platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
-            if "steam" not in platforms:
+        active_users = db.query(models.User).filter(models.User.is_active == True).all()
+        for user in active_users:
+            user_platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
+            if platform not in user_platforms:
                 continue
-            wishlist = [item.game_title for item in user.wishlist]
-            matched = filterWishlistDeals(deals, wishlist)
+            wishlist_titles = [item.game_title for item in user.wishlist]
+            matched = fetchDealsForWishlist(wishlist_titles, [platform])
             results.append({
-                "user": user.email,
-                "wishlist": wishlist,
-                "matched": [d["name"] for d in matched],
-                "sample_deals": [d["name"] for d in deals[:10]]
+                "user":     user.email,
+                "wishlist": wishlist_titles,
+                "matched":  [d["name"] for d in matched],
             })
-        return {"results": results}
     finally:
         db.close()
+
+    return {"platform": platform, "results": results}
