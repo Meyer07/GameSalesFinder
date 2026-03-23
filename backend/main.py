@@ -200,3 +200,17 @@ def debug_ps_api(game: str = "God of War"):
     url = "https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/US/en/999/search/" + game.replace(" ", "%20")
     resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
     return {"status": resp.status_code, "body": resp.text[:2000]}
+
+@app.get("/debug-ps-api2")
+def debug_ps_api2(game: str = "God of War Ragnarok"):
+    import requests
+    url = "https://store.playstation.com/en-us/search/" + game.replace(" ", "%20")
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+        "x-requested-with": "XMLHttpRequest"
+    }
+    # Try Sony's internal search API
+    api_url = f"https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/US/en/999/search/{game.replace(' ', '%20')}?suggested_size=5&mode=game"
+    resp = requests.get(api_url, headers=headers, timeout=10)
+    return {"status": resp.status_code, "body": resp.text[:3000]}
