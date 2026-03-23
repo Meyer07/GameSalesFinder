@@ -44,7 +44,6 @@ def _searchGame(game_title: str) -> str | None:
 
 
 def _getGamePrice(game_id: str, shops: list[int]) -> dict | None:
-    """Get current price for a game on specific shops, returns deal if on sale."""
     try:
         url = "https://api.isthereanydeal.com/games/prices/v3"
         params = {
@@ -61,17 +60,16 @@ def _getGamePrice(game_id: str, shops: list[int]) -> dict | None:
         game_data = data[0]
         deals = game_data.get("deals", [])
 
-        # Filter to only deals from our target shops that have a discount
+        print(f"[DEBUG] Game ID {game_id} has {len(deals)} deals, looking for shops {shops}")
         for deal in deals:
             shop_id = deal.get("shop", {}).get("id")
             cut     = deal.get("price", {}).get("cut", 0)
-
+            print(f"[DEBUG] Shop ID: {shop_id}, cut: {cut}")
             if shop_id in shops and cut > 0:
                 regular   = deal.get("regular", {}).get("amount", 0)
                 sale      = deal.get("price", {}).get("amount", 0)
                 url_buy   = deal.get("url", "")
                 shop_name = deal.get("shop", {}).get("name", str(shop_id))
-
                 return {
                     "sale_price":    f"${sale:.2f}",
                     "regular_price": f"${regular:.2f}",
@@ -79,13 +77,10 @@ def _getGamePrice(game_id: str, shops: list[int]) -> dict | None:
                     "url":           url_buy,
                     "shop":          shop_name,
                 }
-
         return None
-
     except Exception as e:
         print(f"[ERROR] ITAD price fetch failed for game ID '{game_id}': {e}")
         return None
-
 
 def fetchDealsForWishlist(wishlist: list[str], platforms: list[str]) -> list[dict]:
     """
