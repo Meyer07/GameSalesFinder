@@ -123,6 +123,36 @@ def fetchDealsForWishlist(wishlist: list[str], platforms: list[str]) -> list[dic
     return matched
 
 
+def _searchPSGame(game_title: str) -> dict | None:
+    """Search PlayStation Store directly for a game and check if on sale."""
+    try:
+        query = game_title.replace(" ", "%20")
+        url = f"https://store.playstation.com/en-us/search/{query}"
+        
+        # Use Sony's internal search API
+        api_url = "https://web.np.playstation.com/api/graphql/v1/op"
+        params = {
+            "operationName": "getSearchResults",
+            "variables": json.dumps({
+                "searchTerm": game_title,
+                "pageSize": 1,
+                "pageOffset": 0,
+                "countryCode": "US",
+                "languageCode": "en"
+            }),
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "x-psn-correlation-id": "search"
+        }
+        resp = requests.get(api_url, params=params, headers=headers, timeout=10)
+        data = resp.json()
+        # parse price and discount from response
+        ...
+    except Exception as e:
+        print(f"[ERROR] PS search failed for '{game_title}': {e}")
+        return None
+
 # ── Backwards compatibility ────────────────────────────────────────────────────
 
 def fetchDealsForPlatforms(platforms: list[str]) -> list[dict]:

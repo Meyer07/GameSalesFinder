@@ -192,3 +192,11 @@ def debug_itad(game: str = "Red Dead Redemption 2"):
 def version():
     from fetcher import PLATFORM_SHOPS
     return {"version": "2.0", "platform_shops": PLATFORM_SHOPS}
+
+
+@app.get("/debug-ps-api")
+def debug_ps_api(game: str = "God of War"):
+    import requests, json
+    url = "https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/US/en/999/search/" + game.replace(" ", "%20")
+    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+    return {"status": resp.status_code, "body": resp.text[:2000]}
