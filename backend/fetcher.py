@@ -65,7 +65,7 @@ def _getGamePrice(game_id: str, shops: list[int]) -> dict | None:
             shop_id = deal.get("shop", {}).get("id")
             cut     = deal.get("price", {}).get("cut", 0)
             print(f"[DEBUG] Shop ID: {shop_id}, cut: {cut}")
-            if shop_id in shops and cut >= 0:
+            if shop_id in shops and cut > 0:
                 regular   = deal.get("regular", {}).get("amount", 0)
                 sale      = deal.get("price", {}).get("amount", 0)
                 url_buy   = deal.get("url", "")
@@ -123,7 +123,7 @@ def fetchDealsForWishlist(wishlist: list[str], platforms: list[str]) -> list[dic
     return matched
 
 
-def _searchPSGame(game_title: str) -> dict | None:
+#def _searchPSGame(game_title: str) -> dict | None:
     """Search PlayStation Store directly for a game and check if on sale."""
     try:
         query = game_title.replace(" ", "%20")
