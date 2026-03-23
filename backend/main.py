@@ -187,3 +187,8 @@ def debug_itad(game: str = "Red Dead Redemption 2"):
         "game_id": game_id,
         "raw_price_response": price_resp.json()
     }
+
+@app.get("/version")
+def version():
+    from fetcher import PLATFORM_SHOPS
+    return {"version": "2.0", "platform_shops": PLATFORM_SHOPS}
