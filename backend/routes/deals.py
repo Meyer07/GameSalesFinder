@@ -14,7 +14,7 @@ ADMIN_EMAIL=os.getenv("ADMIN_EMAIL","")
 
 
 def require_admin(current_user:models.User=Depends(get_current_user)):
-    if current_user!=ADMIN_EMAIL:
+    if current_user.email!=ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
@@ -22,26 +22,27 @@ def require_admin(current_user:models.User=Depends(get_current_user)):
 
 @router.get("/", response_model=List[schemas.StoreDealResponse])
 def get_deals(platform:str=None,db:Session=Depends(get_db)):
-    query=db.query(models.store_deal)
+    query=db.query(models.StoreDeal)
     if platform:
-        query=query.filter(models.store_deal.platform==platform)
-    return query.order_by(models.store_deal.game_title).all()
+        query=query.filter(models.StoreDeal.platform==platform)
+    return query.order_by(models.StoreDeal.game_title).all()
 
 
 
 @router.post("/", response_model=schemas.StoreDealResponse)
 def add_deal(deal: schemas.StoreDealCreate,db: Session = Depends(get_db),admin: models.User = Depends(require_admin)):
     new_deal = models.StoreDeal(
-        game_title    = deal.game_title,
-        platform      = deal.platform,
-        sale_price    = deal.sale_price,
-        regular_price = deal.regular_price,
-        discount      = deal.discount,
-        sale_end_date = deal.sale_end_date,
+    game_title    = deal.game_title,
+    platform      = deal.platform,
+    sale_price    = str(deal.sale_price),
+    regular_price = str(deal.regular_price),
+    discount      = str(deal.discount),
+    url           = deal.url,
+    sale_end_date = str(deal.sale_end_date) if deal.sale_end_date else None,
     )
     db.add(new_deal)
     db.commit()
-    db.refresh()
+    db.refresh(new_deal)
     return new_deal
 
 

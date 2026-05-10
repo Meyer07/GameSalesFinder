@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -64,11 +64,17 @@ class UserUpdate(BaseModel):
 
 class StoreDealCreate(BaseModel):
     game_title:    str
-    platform:      str        # "ps" or "xbox"
-    sale_price:    str        # e.g. "$29.99"
-    regular_price: str        # e.g. "$59.99"
-    discount:      str        # e.g. "50"
+    platform:      str
+    sale_price:    str
+    regular_price: str
+    discount:      str
+    url:           Optional[str] = None
     sale_end_date: Optional[str] = None
+
+    @field_validator("sale_price", "regular_price", "discount", mode="before")
+    @classmethod
+    def coerce_to_str(cls, v):
+        return str(v) if v is not None else v
 
 
 class StoreDealResponse(BaseModel):
@@ -90,4 +96,5 @@ class StoreDealUpdate(BaseModel):
     sale_price:    Optional[str] = None
     regular_price: Optional[str] = None
     discount:      Optional[str] = None
+    url:           Optional[str] = None
     sale_end_date: Optional[str] = None

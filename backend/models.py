@@ -25,19 +25,19 @@ class WishlistItem(Base):
     user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
     game_title = Column(String, nullable=False)
     added_at   = Column(DateTime(timezone=True), server_default=func.now())
-
     user       = relationship("User", back_populates="wishlist")
 
 
-class store_deal(Base):
+class StoreDeal(Base):
     __tablename__="store_deals"
 
     id=Column(Integer, primary_key=True,index=True)
     game_title=Column(String,nullable=False,index=True)
     platform=Column(String,nullable=False)
-    sales_price=Column(String,nullable=False)
-    original_price=Column(String,nullable=False)
+    sale_price=Column(String,nullable=False)
+    regular_price=Column(String,nullable=False)
     discount=Column(String,nullable=False)
+    url = Column(String, nullable=True)
     sale_end_date=Column(String,nullable=True)
-    updated_at=Column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
