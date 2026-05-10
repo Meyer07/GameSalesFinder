@@ -6,13 +6,6 @@ load_dotenv()
 
 ITAD_API_KEY = os.getenv("ITAD_API_KEY")
 
-# ITAD numeric shop IDs
-PLATFORM_SHOPS = {
-    "ps":    [183, 184],  # PSN PS4=183, PS5=184
-    "steam": [61],        # Steam
-    "xbox":  [185, 186],  # Xbox One=185, Xbox Series X=186
-}
-
 PLATFORM_LABELS = {
     "ps":    "PlayStation",
     "steam": "Steam",
@@ -20,152 +13,150 @@ PLATFORM_LABELS = {
 }
 
 
-def _searchGame(game_title: str) -> str | None:
+# ── Steam via ITAD ─────────────────────────────────────────
+
+def _searchSteamGame(game_title: str) -> str | None:
     """Search ITAD for a game and return its ITAD ID."""
     try:
-        url = "https://api.isthereanydeal.com/games/search/v1"
-        params = {
-            "key":   ITAD_API_KEY,
-            "title": game_title,
-            "limit": 1,
-        }
-        resp = requests.get(url, params=params, timeout=10)
+        resp = requests.get(
+            "https://api.isthereanydeal.com/games/search/v1",
+            params={"key": ITAD_API_KEY, "title": game_title, "limit": 1},
+            timeout=10
+        )
         resp.raise_for_status()
         data = resp.json()
-
-        if not data:
-            return None
-
-        return data[0].get("id")
-
+        return data[0].get("id") if data else None
     except Exception as e:
         print(f"[ERROR] ITAD search failed for '{game_title}': {e}")
         return None
 
 
-def _getGamePrice(game_id: str, shops: list[int]) -> dict | None:
+def _getSteamPrice(game_id: str) -> dict | None:
+    """Get current Steam price for a game from ITAD."""
     try:
-        url = "https://api.isthereanydeal.com/games/prices/v3"
-        params = {
-            "key":     ITAD_API_KEY,
-            "country": "US",
-        }
-        resp = requests.post(url, params=params, json=[game_id], timeout=10)
+        resp = requests.post(
+            "https://api.isthereanydeal.com/games/prices/v3",
+            params={"key": ITAD_API_KEY, "country": "US"},
+            json=[game_id],
+            timeout=10
+        )
         resp.raise_for_status()
         data = resp.json()
-
         if not data:
             return None
 
-        game_data = data[0]
-        deals = game_data.get("deals", [])
-
-        print(f"[DEBUG] Game ID {game_id} has {len(deals)} deals, looking for shops {shops}")
-        for deal in deals:
+        for deal in data[0].get("deals", []):
             shop_id = deal.get("shop", {}).get("id")
             cut     = deal.get("price", {}).get("cut", 0)
-            print(f"[DEBUG] Shop ID: {shop_id}, cut: {cut}")
-            if shop_id in shops and cut > 0:
-                regular   = deal.get("regular", {}).get("amount", 0)
-                sale      = deal.get("price", {}).get("amount", 0)
-                url_buy   = deal.get("url", "")
-                shop_name = deal.get("shop", {}).get("name", str(shop_id))
+            if shop_id == 61 and cut > 0:  # 61 = Steam
                 return {
-                    "sale_price":    f"${sale:.2f}",
-                    "regular_price": f"${regular:.2f}",
+                    "sale_price":    f"${deal['price']['amount']:.2f}",
+                    "regular_price": f"${deal['regular']['amount']:.2f}",
                     "discount":      str(cut),
-                    "url":           url_buy,
-                    "shop":          shop_name,
+                    "url":           deal.get("url", ""),
+                    "shop":          "Steam",
                 }
         return None
     except Exception as e:
-        print(f"[ERROR] ITAD price fetch failed for game ID '{game_id}': {e}")
+        print(f"[ERROR] ITAD price fetch failed for '{game_id}': {e}")
         return None
+
+
+def _fetchSteamDeals(wishlist: list[str]) -> list[dict]:
+    """Check Steam deals for wishlist games via ITAD."""
+    matched = []
+    print(f"[→] Checking Steam for {len(wishlist)} games via ITAD...")
+    for game in wishlist:
+        game_id = _searchSteamGame(game)
+        if not game_id:
+            print(f"[✗] Not found on ITAD: {game}")
+            continue
+        deal = _getSteamPrice(game_id)
+        if deal:
+            matched.append({
+                "name":           game,
+                "sale_price":     deal["sale_price"],
+                "regular_price":  deal["regular_price"],
+                "discount":       deal["discount"],
+                "url":            deal["url"],
+                "platform":       "steam",
+                "platform_label": "Steam",
+            })
+            print(f"[✓] On sale: {game} on Steam — {deal['sale_price']} ({deal['discount']}% OFF)")
+        else:
+            print(f"[✗] Not on sale: {game} on Steam")
+    return matched
+
+
+# ── PS / Xbox via database ─────────────────────────────────
+
+def _fetchDatabaseDeals(wishlist: list[str], platform: str) -> list[dict]:
+    """Check PS or Xbox deals for wishlist games from our database."""
+    from database import SessionLocal
+    import models
+
+    matched = []
+    label   = PLATFORM_LABELS.get(platform, platform)
+    print(f"[→] Checking {label} for {len(wishlist)} games via database...")
+
+    db = SessionLocal()
+    try:
+        for game in wishlist:
+            deal = db.query(models.StoreDeal).filter(
+                models.StoreDeal.platform   == platform,
+                models.StoreDeal.game_title.ilike(f"%{game}%")
+            ).first()
+
+            if deal:
+                matched.append({
+                    "name":           deal.game_title,
+                    "sale_price":     deal.sale_price,
+                    "regular_price":  deal.regular_price,
+                    "discount":       deal.discount,
+                    "url":            deal.url or "",
+                    "platform":       platform,
+                    "platform_label": label,
+                    "sale_end_date":  deal.sale_end_date or "",
+                })
+                print(f"[✓] On sale: {deal.game_title} on {label} — {deal.sale_price} ({deal.discount}% OFF)")
+            else:
+                print(f"[✗] Not on sale: {game} on {label}")
+    finally:
+        db.close()
+
+    return matched
+
+
+# ── Main entry point ───────────────────────────────────────
 
 def fetchDealsForWishlist(wishlist: list[str], platforms: list[str]) -> list[dict]:
     """
-    Search ITAD for each wishlist game on each platform.
-    Returns only games that are currently on sale.
+    Fetch deals for wishlist games across platforms.
+    - Steam: uses ITAD API
+    - PS / Xbox: queries our own database
     """
     matched = []
-    supported = [p for p in platforms if p in PLATFORM_SHOPS]
 
-    if not supported or not wishlist:
-        return []
-
-    for platform in supported:
-        shops = PLATFORM_SHOPS[platform]
-        print(f"[→] Checking {PLATFORM_LABELS[platform]} for {len(wishlist)} games...")
-
-        for game in wishlist:
-            game_id = _searchGame(game)
-            if not game_id:
-                print(f"[✗] Not found on ITAD: {game}")
-                continue
-
-            deal = _getGamePrice(game_id, shops)
-            if deal:
-                matched.append({
-                    "name":           game,
-                    "sale_price":     deal["sale_price"],
-                    "regular_price":  deal["regular_price"],
-                    "discount":       deal["discount"],
-                    "url":            deal["url"],
-                    "platform":       platform,
-                    "platform_label": PLATFORM_LABELS[platform],
-                    "shop":           deal["shop"],
-                })
-                print(f"[✓] On sale: {game} on {deal['shop']} — {deal['sale_price']} ({deal['discount']}% OFF)")
-            else:
-                print(f"[✗] Not on sale: {game} on {PLATFORM_LABELS[platform]}")
+    for platform in platforms:
+        if platform == "steam":
+            matched.extend(_fetchSteamDeals(wishlist))
+        elif platform in ("ps", "xbox"):
+            matched.extend(_fetchDatabaseDeals(wishlist, platform))
+        else:
+            print(f"[WARN] Unknown platform: {platform}")
 
     print(f"[✓] Total matches found: {len(matched)}")
     return matched
 
 
-#def _searchPSGame(game_title: str) -> dict | None:
-    """Search PlayStation Store directly for a game and check if on sale."""
-    try:
-        query = game_title.replace(" ", "%20")
-        url = f"https://store.playstation.com/en-us/search/{query}"
-        
-        # Use Sony's internal search API
-        api_url = "https://web.np.playstation.com/api/graphql/v1/op"
-        params = {
-            "operationName": "getSearchResults",
-            "variables": json.dumps({
-                "searchTerm": game_title,
-                "pageSize": 1,
-                "pageOffset": 0,
-                "countryCode": "US",
-                "languageCode": "en"
-            }),
-        }
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "x-psn-correlation-id": "search"
-        }
-        resp = requests.get(api_url, params=params, headers=headers, timeout=10)
-        data = resp.json()
-        # parse price and discount from response
-        ...
-    except Exception as e:
-        print(f"[ERROR] PS search failed for '{game_title}': {e}")
-        return None
-
-# ── Backwards compatibility ────────────────────────────────────────────────────
+# ── Backwards compatibility ────────────────────────────────
 
 def fetchDealsForPlatforms(platforms: list[str]) -> list[dict]:
-    """Legacy function — no longer used, use fetchDealsForWishlist instead."""
-    print("[WARN] fetchDealsForPlatforms called — use fetchDealsForWishlist instead.")
+    print("[WARN] fetchDealsForPlatforms is deprecated — use fetchDealsForWishlist.")
     return []
-
 
 def fetchPsDeals() -> list[dict]:
-    """Legacy function — no longer used."""
     return []
 
-
 def filterWishlistDeals(deals: list[dict], wishlist: list[str]) -> list[dict]:
-    """Legacy filter — returns deals as-is since fetchDealsForWishlist already filters."""
     return deals

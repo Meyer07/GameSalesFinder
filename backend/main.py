@@ -2,16 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
-from routes import users, wishlist
+from routes import users, wishlist, deals
 import threading
-import os
 
 # Create all database tables on startup
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Game Sales Notifier", version="1.0.0")
+app = FastAPI(title="Game Sales Notifier", version="2.0.0")
 
-# CORS — allow React frontend to communicate with the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -24,9 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
 app.include_router(users.router)
 app.include_router(wishlist.router)
+app.include_router(deals.router)
 
 
 @app.get("/")
@@ -39,10 +37,9 @@ def health():
     return {"status": "ok"}
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+# ── Notify helpers ─────────────────────────────────────────
 
 def _runNotifyForPlatform(platform_key: str):
-    """Search wishlist games for one platform and notify users with matches."""
     from fetcher import fetchDealsForWishlist
     from notifications import sendPushover
     from database import SessionLocal
@@ -54,7 +51,6 @@ def _runNotifyForPlatform(platform_key: str):
         active_users = db.query(models.User).filter(models.User.is_active == True).all()
 
         for user in active_users:
-            # Only process users who have this platform selected
             user_platforms = [p.strip() for p in (user.platforms or "ps").split(",")]
             if platform_key not in user_platforms:
                 continue
@@ -64,7 +60,6 @@ def _runNotifyForPlatform(platform_key: str):
                 results.append({"user": user.email, "status": "skipped — no wishlist"})
                 continue
 
-            # Search DekuDeals for each wishlist game on this platform
             matched = fetchDealsForWishlist(wishlist_titles, [platform_key])
 
             if not matched:
@@ -83,23 +78,15 @@ def _runNotifyForPlatform(platform_key: str):
     finally:
         db.close()
 
-    return {
-        "platform": platform_key,
-        "results":  results
-    }
+    return {"platform": platform_key, "results": results}
 
 
 def _runInBackground(platform_key: str):
-    """Run notify job in background thread so endpoint returns immediately."""
     thread = threading.Thread(target=_runNotifyForPlatform, args=(platform_key,), daemon=True)
     thread.start()
 
 
-# ── Per-Platform Notify Endpoints ─────────────────────────────────────────────
-# Point cron-job.org at each of these at staggered times:
-#   9:00am → /notify-ps
-#   9:15am → /notify-steam
-#   9:30am → /notify-xbox
+# ── Notify endpoints ───────────────────────────────────────
 
 @app.get("/notify-ps")
 def notify_ps():
@@ -119,17 +106,10 @@ def notify_xbox():
     return {"status": "Xbox notify job started"}
 
 
-# ── Debug endpoint ────────────────────────────────────────────────────────────
+# ── Debug endpoints ────────────────────────────────────────
 
 @app.get("/debug-wishlist")
 def debug_wishlist(platform: str = "ps"):
-    """
-    Check what games would match for each user on a given platform.
-    Usage:
-      /debug-wishlist?platform=ps
-      /debug-wishlist?platform=steam
-      /debug-wishlist?platform=xbox
-    """
     from fetcher import fetchDealsForWishlist
     from database import SessionLocal
 
@@ -153,64 +133,3 @@ def debug_wishlist(platform: str = "ps"):
         db.close()
 
     return {"platform": platform, "results": results}
-
-@app.get("/debug-itad")
-def debug_itad(game: str = "Red Dead Redemption 2"):
-    import requests
-    import os
-    
-    api_key = os.getenv("ITAD_API_KEY")
-    
-    # Step 1: Search for game
-    search_resp = requests.get(
-        "https://api.isthereanydeal.com/games/search/v1",
-        params={"key": api_key, "title": game, "limit": 1},
-        timeout=10
-    )
-    search_data = search_resp.json()
-    
-    if not search_data:
-        return {"error": "Game not found", "game": game}
-    
-    game_id = search_data[0].get("id")
-    
-    # Step 2: Get prices
-    price_resp = requests.post(
-        "https://api.isthereanydeal.com/games/prices/v3",
-        params={"key": api_key, "country": "US"},
-        json=[game_id],
-        timeout=10
-    )
-    
-    return {
-        "game": game,
-        "game_id": game_id,
-        "raw_price_response": price_resp.json()
-    }
-
-@app.get("/version")
-def version():
-    from fetcher import PLATFORM_SHOPS
-    return {"version": "2.0", "platform_shops": PLATFORM_SHOPS}
-
-
-@app.get("/debug-ps-api")
-def debug_ps_api(game: str = "God of War"):
-    import requests, json
-    url = "https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/US/en/999/search/" + game.replace(" ", "%20")
-    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-    return {"status": resp.status_code, "body": resp.text[:2000]}
-
-@app.get("/debug-ps-api2")
-def debug_ps_api2(game: str = "God of War Ragnarok"):
-    import requests
-    url = "https://store.playstation.com/en-us/search/" + game.replace(" ", "%20")
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "x-requested-with": "XMLHttpRequest"
-    }
-    # Try Sony's internal search API
-    api_url = f"https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/US/en/999/search/{game.replace(' ', '%20')}?suggested_size=5&mode=game"
-    resp = requests.get(api_url, headers=headers, timeout=10)
-    return {"status": resp.status_code, "body": resp.text[:3000]}
