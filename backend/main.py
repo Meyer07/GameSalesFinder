@@ -15,8 +15,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://game-sales-finder.vercel.app",
-        "https://game-sales-finder-git-main-meyer07s-projects.vercel.app",
     ],
+    allow_origin_regex="https://game-sales-finder-.*\\.vercel\\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
