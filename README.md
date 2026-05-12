@@ -8,6 +8,7 @@ A full-stack web app that lets multiple users sign up, manage their own game wis
 - **Notifications**: Pushover (push)
 - **Deals Source**: ITAD API + STORE_DEALS Database 
 - **Hosting**: Render (backend) + Supabase (database) + Vercel (frontend) — all free
+- **Automation**: Cron-job.org(to keep the render instance awake)
 
 ---
 
@@ -64,8 +65,7 @@ Tables are created automatically when the backend starts.
 
 All three services have free tiers. Total cost: **$0/month**.
 
-> ⚠️ Render's free tier spins down after 15 minutes of inactivity. The first request after a period of no use takes ~30 seconds to wake up. This is fine for a scheduled deals notifier.
->Set up a cron-job and a health endpoint in main.py in order to keep the render instance awake, as the job runs every 10 minutes and sends a message to the health endpoint
+> ⚠️ Render's free tier spins down after 15 minutes of inactivity, this is solved with cron-job.org sending a request to a health end point in the render deployment to keep it awake every 10 minutes 
 
 ---
 
