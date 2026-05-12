@@ -1,12 +1,12 @@
 # 🎮 PS Deals Notifier
 
-A full-stack web app that lets multiple users sign up, manage their own PS game wishlists, and receive personalized email + Pushover notifications when their games go on sale.
+A full-stack web app that lets multiple users sign up, manage their own game wishlists on the platform of their choice, and recieve Pushover notifications when their games go on sale.
 
 ## Stack
 - **Backend**: FastAPI + PostgreSQL + SQLAlchemy
 - **Frontend**: React + Vite
-- **Notifications**: Roadrunner SMTP (email) + Pushover (push)
-- **Deals Source**: DekuDeals (Selenium scraper)
+- **Notifications**: Pushover (push)
+- **Deals Source**: ITAD API + STORE_DEALS Database 
 - **Hosting**: Render (backend) + Supabase (database) + Vercel (frontend) — all free
 
 ---
